@@ -1,0 +1,111 @@
+### 1. Modify compiler.c – Add a Hash Table
+
+Declare a hash table that stores identifier constants.
+
+```c
+static Table stringConstants;
+```
+
+The table maps each identifier to its index in the
+constant table.
+
+Since this uses the existing Table type, compiler.c
+also needs access to its declaration through table.h.
+
+### 2. Initialize and Free the Table
+
+In the compile() function, initialize the table before
+parsing and free it after compilation finishes.
+
+```c
+bool compile(const char* source, Chunk* chunk) {
+  initScanner(source);
+
+  compilingChunk = chunk;
+  parser.hadError = false;
+  parser.panicMode = false;
+
+  initTable(&stringConstants);
+
+  advance();
+
+  while (!match(TOKEN_EOF)) {
+    declaration();
+  }
+
+  endCompiler();
+
+  freeTable(&stringConstants);
+
+  return !parser.hadError;
+}
+```
+
+This ensures each compilation starts with an empty
+lookup table and releases its allocated table storage
+when compilation is finished.
+
+### 3. Update identifierConstant()
+
+Before adding an identifier to the constant table, look
+for it in the hash table.
+
+```c
+static uint8_t identifierConstant(Token* name) {
+  ObjString* string =
+      copyString(name->start, name->length);
+
+  Value indexValue;
+
+  if (tableGet(&stringConstants, string, &indexValue)) {
+    return (uint8_t)AS_NUMBER(indexValue);
+  }
+
+  uint8_t index = makeConstant(OBJ_VAL(string));
+
+  tableSet(&stringConstants, string,
+           NUMBER_VAL((double)index));
+
+  return index;
+}
+```
+
+If the identifier already exists, its stored index is
+returned instead of creating another constant.
+
+Otherwise, the compiler adds the identifier to the
+constant table and records its new index in the
+hash table.
+
+This works with clox's string interning because
+identical identifier strings share the same ObjString
+pointer.
+
+## Compiler Performance
+
+The optimization adds some work during compilation
+because the compiler must perform a hash table lookup
+whenever it encounters an identifier.
+
+However, hash table lookups are approximately constant
+time on average.
+
+A simple alternative would be to scan the constant table
+for duplicates, but repeated linear searches could lead
+to quadratic compilation time as the number of
+identifiers grows.
+
+Using a hash table avoids that problem.
+
+## Runtime Performance
+
+The runtime still accesses identifier names through the
+constant table, so this optimization does not directly
+make global variable lookups faster.
+
+Its main benefit is reducing duplicate constant entries
+and using fewer constant table slots.
+
+This is especially helpful because clox currently
+supports only 256 constants per chunk.
+
