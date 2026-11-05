@@ -1,0 +1,184 @@
+### 1. Modify value.h
+
+First, add a new internal value type called VAL_EMPTY:
+
+```c
+typedef enum {
+  VAL_BOOL,
+  VAL_NIL,
+  VAL_NUMBER,
+  VAL_OBJ,
+  VAL_EMPTY
+} ValueType;
+```
+
+Next, add these macros:
+
+```c
+#define IS_EMPTY(value) ((value).type == VAL_EMPTY)
+
+#define EMPTY_VAL \
+    ((Value){VAL_EMPTY, {.number = 0}})
+```
+
+VAL_EMPTY is necessary because nil is now a valid hash
+table key. We can no longer use nil to represent an
+unused bucket.
+
+### 2. Modify table.h
+
+Change the Entry structure so that its key is a Value
+instead of an ObjString pointer.
+
+```c
+typedef struct {
+  Value key;
+  Value value;
+} Entry;
+```
+
+Update the function declarations:
+
+```c
+bool tableGet(Table* table, Value key, Value* value);
+bool tableSet(Table* table, Value key, Value value);
+bool tableDelete(Table* table, Value key);
+```
+
+This allows the hash table to accept different types of keys.
+
+### 3. Modify value.c
+
+We need a hash function that can generate hash codes
+for each supported value type.
+
+```c
+static uint32_t hashDouble(double value) {
+  union BitCast {
+    double value;
+    uint32_t ints[2];
+  };
+
+  union BitCast cast;
+  cast.value = value + 1.0;
+  return cast.ints[0] + cast.ints[1];
+}
+
+uint32_t hashValue(Value value) {
+  switch (value.type) {
+    case VAL_BOOL:
+      return AS_BOOL(value) ? 3 : 5;
+
+    case VAL_NIL:
+      return 7;
+
+    case VAL_NUMBER:
+      return hashDouble(AS_NUMBER(value));
+
+    case VAL_OBJ:
+      return AS_STRING(value)->hash;
+
+    case VAL_EMPTY:
+      return 0;
+  }
+
+  return 0;
+}
+```
+
+Booleans and nil receive fixed hash codes. Numbers use
+a function based on their floating-point representation,
+while strings use their previously calculated hash codes.
+
+The hashValue() function must also be declared in value.h.
+
+### 4. Modify table.c
+
+Update findEntry() to accept a Value key and compare
+keys using valuesEqual().
+
+```c
+static Entry* findEntry(Entry* entries, int capacity,
+                        Value key) {
+  uint32_t index = hashValue(key) % capacity;
+  Entry* tombstone = NULL;
+
+  for (;;) {
+    Entry* entry = &entries[index];
+
+    if (IS_EMPTY(entry->key)) {
+      if (IS_NIL(entry->value)) {
+        return tombstone != NULL ? tombstone : entry;
+      } else {
+        if (tombstone == NULL) {
+          tombstone = entry;
+        }
+      }
+    } else if (valuesEqual(key, entry->key)) {
+      return entry;
+    }
+
+    index = (index + 1) % capacity;
+  }
+}
+```
+
+This also preserves tombstone handling when entries
+are deleted.
+
+Initialize unused buckets using:
+
+```c
+entries[i].key = EMPTY_VAL;
+entries[i].value = NIL_VAL;
+```
+
+When deleting an entry, replace its key with EMPTY_VAL
+and its value with BOOL_VAL(true).
+
+All remaining table operations must consistently use
+Value keys and IS_EMPTY() checks. Empty buckets and
+tombstones must remain distinguishable.
+
+### 5. Update the other files
+
+Because tableSet(), tableGet(), and tableDelete() now
+accept Value keys, existing string-key calls must be
+wrapped using OBJ_VAL().
+
+For example:
+
+```c
+tableSet(&vm.strings, OBJ_VAL(string), NIL_VAL);
+```
+
+The existing global-variable and string-interning code
+must also be updated to match the new key representation.
+
+The implementation must preserve the rule that equal
+keys always produce the same hash code.
+
+## Supporting User-Defined Class Instances
+
+Allowing instances of user-defined classes to be used
+as hash table keys would introduce additional complexity.
+
+The interpreter would need to decide how instances
+should be compared.
+
+One option would be identity-based equality, where two
+instances are equal only if they refer to the same object.
+
+Another option would be value-based equality, where
+instances can be considered equal based on their fields.
+
+If value-based equality is allowed, the hash function
+must remain consistent with the equality comparison.
+
+Mutable objects introduce another problem. If an object's
+hash code depends on fields that can change after the
+object is inserted, the hash table may no longer be able
+to locate it correctly.
+
+To prevent this, the language could use object identity
+for hashing or require hashable fields to remain immutable.
