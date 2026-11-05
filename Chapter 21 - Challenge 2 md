@@ -1,0 +1,209 @@
+### 1. Modify vm.h
+
+Replace the original globals hash table with:
+
+```c
+Table globalNames;
+ValueArray globalValues;
+```
+
+The globalNames table maps variable names to their
+corresponding indexes in globalValues.
+
+The globalValues array stores the actual values
+of the global variables.
+
+For example, the declaration:
+
+```lox
+var a = "value";
+```
+
+Would produce an entry similar to:
+
+globalNames: "a" -> 0
+globalValues[0]: "value"
+
+### 2. Modify compiler.c
+
+Update identifierConstant() so it finds or assigns
+a global variable's array index during compilation.
+
+```c
+static uint8_t identifierConstant(Token* name) {
+  Value index;
+
+  ObjString* identifier =
+      copyString(name->start, name->length);
+
+  if (tableGet(&vm.globalNames, identifier, &index)) {
+    return (uint8_t)AS_NUMBER(index);
+  }
+
+  uint8_t newIndex = (uint8_t)vm.globalValues.count;
+
+  writeValueArray(&vm.globalValues, UNDEFINED_VAL);
+
+  tableSet(&vm.globalNames, identifier,
+           NUMBER_VAL((double)newIndex));
+
+  return newIndex;
+}
+```
+
+This function first checks whether the variable name
+already has an assigned index.
+
+If it does, the existing index is returned.
+
+Otherwise, a new slot is created in the globalValues
+array, and its index is recorded in globalNames.
+
+### 3. Add an Undefined Value Type
+
+The interpreter needs a way to distinguish between
+a global variable that has been defined and one
+that has only been assigned a slot.
+
+We cannot use nil for this because nil is a valid
+value in Lox.
+
+Therefore, the proposed solution introduces a new
+internal value called UNDEFINED_VAL.
+
+Conceptually, value.h would include:
+
+```c
+// Add to ValueType:
+VAL_UNDEFINED
+
+// Add the following macros:
+#define IS_UNDEFINED(value) \
+    ((value).type == VAL_UNDEFINED)
+
+#define UNDEFINED_VAL \
+    ((Value){VAL_UNDEFINED, {.number = 0}})
+```
+
+This special value marks a global variable slot
+that has not been defined yet.
+
+### 4. Modify vm.c – Reading Global Variables
+
+Replace the runtime hash table lookup with direct
+array indexing.
+
+```c
+case OP_GET_GLOBAL: {
+  Value value = vm.globalValues.values[READ_BYTE()];
+
+  if (IS_UNDEFINED(value)) {
+    runtimeError("Undefined variable.");
+    return INTERPRET_RUNTIME_ERROR;
+  }
+
+  push(value);
+  break;
+}
+```
+
+The VM reads the variable's index directly from
+the bytecode and accesses its value in the array.
+
+The undefined check preserves Lox's behavior when
+a program tries to access a variable that has
+not been defined.
+
+### 5. Modify vm.c – Defining Global Variables
+
+```c
+case OP_DEFINE_GLOBAL: {
+  vm.globalValues.values[READ_BYTE()] = pop();
+  break;
+}
+```
+
+Instead of storing the variable in a hash table,
+the VM stores its value directly in the
+corresponding array position.
+
+### 6. Modify vm.c – Assigning Global Variables
+
+```c
+case OP_SET_GLOBAL: {
+  uint8_t index = READ_BYTE();
+
+  if (IS_UNDEFINED(vm.globalValues.values[index])) {
+    runtimeError("Undefined variable.");
+    return INTERPRET_RUNTIME_ERROR;
+  }
+
+  vm.globalValues.values[index] = peek(0);
+  break;
+}
+```
+
+This checks whether the variable was previously
+defined before allowing assignment.
+
+It also leaves the assigned value on the stack
+because assignment is an expression in Lox.
+
+### 7. Initialize and Free the New Structures
+
+The VM must initialize the new table and array:
+
+```c
+initTable(&vm.globalNames);
+initValueArray(&vm.globalValues);
+```
+
+When shutting down, the VM must free them:
+
+```c
+freeTable(&vm.globalNames);
+freeValueArray(&vm.globalValues);
+```
+
+These changes replace the original initialization
+and cleanup of vm.globals.
+
+## Performance Comparison
+
+### Original Implementation
+
+Every global variable lookup requires the VM to
+search the globals hash table using the variable name.
+
+Even though hash table operations are approximately
+O(1) on average, they still involve hashing,
+comparing keys, and possibly resolving collisions.
+
+### Optimized Implementation
+
+The compiler determines each global variable's
+array index ahead of time.
+
+At runtime, the VM uses the stored index to access
+the variable directly.
+
+This eliminates repeated runtime hash table lookups
+and reduces the work required to access globals.
+
+## Preserving Lox Semantics
+
+The optimization must still preserve important
+language rules.
+
+- Global variables can be defined after their names
+  are first encountered during compilation.
+- Accessing an undefined global must produce a
+  runtime error.
+- Assigning to an undefined global must also
+  produce a runtime error.
+- Global variables must persist between REPL inputs.
+- Global variables can be redefined.
+
+The UNDEFINED_VAL marker is necessary to distinguish
+a reserved variable slot from an actual defined value.
+
