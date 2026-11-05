@@ -1,0 +1,71 @@
+### 1. Java – HashMap (OpenJDK)
+
+Java's HashMap primarily uses separate chaining
+to handle hash collisions.
+
+Entries that map to the same bucket are stored in
+a linked structure. If too many collisions occur in
+one bucket, HashMap can convert that bucket into
+a balanced tree.
+
+Java's default load factor is 0.75, meaning the
+table is generally resized when the number of
+entries exceeds 75% of its capacity.
+
+I think Java uses this approach because separate
+chaining is flexible and makes collision handling
+straightforward. The tree-based optimization also
+helps prevent extremely long lookup times when
+many keys collide.
+
+### 2. Python – Dictionary (CPython)
+
+Python's dictionary uses open addressing to handle
+collisions. Instead of storing linked lists in
+individual buckets, it searches for another
+available position within its table.
+
+CPython uses a probing algorithm that incorporates
+additional bits from the hash value to determine
+where to search next.
+
+Its compact dictionary representation also separates
+the index structure from the stored entries.
+
+This helps reduce memory overhead while supporting
+efficient lookups and preserving insertion order.
+
+I think Python uses this design because dictionaries
+are used extensively throughout the language.
+Reducing memory consumption and keeping lookups fast
+can improve the performance of many Python programs.
+
+### 3. Google Abseil – Swiss Tables
+
+Google's Abseil library provides hash table
+implementations such as absl::flat_hash_map.
+
+Swiss Tables use open addressing and store additional
+metadata in control bytes.
+
+These control bytes help identify possible matches
+without needing to compare every key individually.
+
+The implementation can use SIMD instructions to
+examine multiple control bytes efficiently.
+
+Abseil's flat hash tables generally allow a maximum
+load factor of 87.5%.
+
+I think this approach is useful because modern
+processors benefit from accessing nearby memory
+locations. The compact layout and metadata-based
+searching can make lookups very efficient.
+
+## Comparison
+
+| Implementation | Collision Handling | Main Optimization |
+|---|---|---|
+| Java HashMap | Separate chaining | Tree-based buckets for heavy collisions |
+| Python Dictionary | Open addressing | Compact storage and probing |
+| Abseil Swiss Tables | Open addressing | Control bytes and SIMD-friendly lookups |
