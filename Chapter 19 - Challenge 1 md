@@ -1,0 +1,74 @@
+### 1. Modify object.h
+
+Replace the character pointer with a flexible array member:
+
+```c
+struct ObjString {
+  Obj obj;
+  int length;
+  char chars[];
+};
+```
+
+This allows the structure and its character data to be stored
+in one continuous block of memory.
+
+### 2. Modify object.c
+
+Create a function that allocates enough memory for the
+ObjString structure and all of its characters:
+
+```c
+ObjString* makeString(int length) {
+  ObjString* string = (ObjString*)allocateObject(
+      sizeof(ObjString) + length + 1, OBJ_STRING);
+  string->length = length;
+  return string;
+}
+
+ObjString* copyString(const char* chars, int length) {
+  ObjString* string = makeString(length);
+
+  memcpy(string->chars, chars, length);
+  string->chars[length] = '\0';
+
+  return string;
+}
+```
+
+The makeString() function allocates space for both the string
+object and the characters, including the null terminator.
+
+### 3. Modify vm.c
+
+Update concatenation to write the result directly into
+the flexible array:
+
+```c
+static void concatenate() {
+  ObjString* b = AS_STRING(pop());
+  ObjString* a = AS_STRING(pop());
+
+  int length = a->length + b->length;
+  ObjString* result = makeString(length);
+
+  memcpy(result->chars, a->chars, a->length);
+  memcpy(result->chars + a->length, b->chars, b->length);
+  result->chars[length] = '\0';
+
+  push(OBJ_VAL(result));
+}
+```
+
+### 4. Modify memory.c
+
+Free the string using a single memory deallocation:
+
+```c
+case OBJ_STRING: {
+  ObjString* string = (ObjString*)object;
+  reallocate(object,
+      sizeof(ObjString) + string->length + 1, 0);
+  break;
+}
+```
