@@ -1,0 +1,146 @@
+## Benchmark 1: Inserting Entries
+
+The first benchmark measures how long it takes to insert
+a large number of key-value pairs into a hash table.
+
+```c
+clock_t start = clock();
+
+for (int i = 0; i < count; i++) {
+  tableSet(&table, keys[i], NUMBER_VAL(i));
+}
+
+clock_t end = clock();
+
+double seconds =
+    (double)(end - start) / CLOCKS_PER_SEC;
+```
+
+The keys should be created before starting the timer
+so the benchmark measures hash table operations rather
+than string allocation.
+
+This test is useful because inserting entries may cause
+collisions and require the table to resize. When the table
+grows, existing entries must be rehashed and placed into
+the new array.
+
+Individual insertions can sometimes be expensive because
+of resizing, but insertion is expected to have amortized
+constant-time performance.
+
+## Benchmark 2: Looking Up Entries
+
+The second benchmark tests how quickly the hash table can
+retrieve values using existing keys.
+
+```c
+clock_t start = clock();
+int found = 0;
+
+for (int repeat = 0; repeat < 100; repeat++) {
+  for (int i = 0; i < count; i++) {
+    Value value;
+
+    if (tableGet(&table, keys[i], &value)) {
+      found++;
+    }
+  }
+}
+
+clock_t end = clock();
+
+double seconds =
+    (double)(end - start) / CLOCKS_PER_SEC;
+```
+
+This test uses repeated lookups so the execution time is
+large enough to measure more reliably.
+
+I chose this test because hash tables are frequently used
+for retrieving values, especially when accessing variables
+or object properties.
+
+With a good hash function and a reasonable load factor,
+lookups should take approximately constant time on average.
+
+However, collisions may cause the table to examine multiple
+buckets before finding the correct entry.
+
+## Benchmark 3: Deleting and Reinserting Entries
+
+The third benchmark measures performance when entries are
+repeatedly removed and added back into the table.
+
+```c
+clock_t start = clock();
+
+for (int i = 0; i < count; i += 2) {
+  tableDelete(&table, keys[i]);
+}
+
+for (int i = 0; i < count; i += 2) {
+  tableSet(&table, keys[i], NUMBER_VAL(i));
+}
+
+clock_t end = clock();
+
+double seconds =
+    (double)(end - start) / CLOCKS_PER_SEC;
+```
+
+I chose this test because clox uses tombstones to represent
+deleted entries.
+
+Tombstones allow the hash table to preserve probing
+sequences after deletions, but they can also increase
+the number of buckets examined during later operations.
+
+Reinserting entries can reuse tombstone positions.
+
+This benchmark helps evaluate how efficiently the table
+handles workloads involving frequent modifications.
+
+## Comparing Different Table Sizes
+
+I would run each benchmark with the following sizes:
+
+- 100 entries
+- 1,000 entries
+- 10,000 entries
+
+Running the same tests with different table sizes would
+help determine how performance changes as the table grows.
+
+All tests should use the same build settings and be run
+multiple times to reduce measurement noise.
+
+For each test, I would record the execution time and
+calculate the average time per operation.
+
+## Expected Performance
+
+| Test | Expected Behavior |
+|------|-------------------|
+| Insertion | Approximately O(1) amortized per entry |
+| Lookup | Approximately O(1) average per lookup |
+| Deletion | Approximately O(1) average per deletion |
+| Deletion and reinsertion | May be affected by tombstones and resizing |
+
+These are theoretical expectations based on the hash table
+design, not measured benchmark results.
+
+Insertion can occasionally be slower when the table grows
+and existing entries must be rehashed.
+
+Lookups are expected to remain relatively efficient,
+although collisions can increase probing time.
+
+Deleting entries is usually inexpensive, but a large
+number of tombstones can affect future lookups.
+
+The actual performance differences would need to be
+confirmed by compiling and running the benchmarks.
+
+These benchmarks are proposed tests. No actual timing
+measurements have been collected or verified.
