@@ -1,0 +1,66 @@
+## Advantages of Compile-Time Checking
+
+Reporting undefined global variables during compilation
+would help programmers identify mistakes earlier.
+
+It could also make debugging easier because errors
+would be detected without requiring the affected
+function to execute.
+
+This would be particularly useful in larger programs
+where some functions are rarely called.
+
+## Disadvantages of Compile-Time Checking
+
+Strict compile-time checking could make development
+less flexible.
+
+For example, a programmer might temporarily leave
+unfinished code in a function while working on another
+part of the program.
+
+Even if that function is never called, the compiler
+could reject the entire script.
+
+This could make testing and refactoring less convenient.
+
+## Comparison With Other Languages
+
+### Python
+
+Python generally resolves global names at runtime.
+
+A function may reference a global variable that has
+not been defined yet, as long as the variable exists
+when the function actually executes.
+
+If the name cannot be resolved when used, Python raises
+a NameError.
+
+### JavaScript
+
+JavaScript also allows functions to reference variables
+that may be declared elsewhere.
+
+For example, a function may be defined before the
+global variable it uses.
+
+However, accessing an unresolvable identifier typically
+produces a ReferenceError.
+
+JavaScript also has additional rules involving
+declaration types, hoisting, and the temporal dead zone.
+
+## Alternative Approach: Compiler Warnings
+
+Another option would be to report undeclared global
+variables as warnings rather than errors.
+
+This would allow programmers to run their scripts
+while still being informed about potential mistakes.
+
+However, warnings introduce additional decisions
+about whether they should prevent execution.
+
+Some developers may ignore warnings, while others
+may want to treat every warning as an error.
