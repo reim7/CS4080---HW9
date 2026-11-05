@@ -1,0 +1,81 @@
+If I were designing Lox, I would allow the + operator
+to concatenate a string with another type by automatically
+converting the non-string operand into a string.
+
+For example:
+
+```lox
+print "Age: " + 22;
+print 22 + " years old";
+```
+
+With automatic conversion, the expected output would be:
+
+```text
+Age: 22
+22 years old
+```
+
+I would want the operation to work the same way regardless
+of whether the string appears on the left or right side
+of the + operator. This would make the language more
+consistent and intuitive.
+
+In the current clox implementation, the + operator only
+supports adding two numbers or concatenating two strings.
+Mixing a string with another type produces a runtime error.
+
+## Comparison With Other Languages
+
+Different programming languages handle mixed-type
+concatenation differently.
+
+### JavaScript
+
+JavaScript automatically converts the other operand
+into a string when using + with a string.
+
+For example:
+
+```javascript
+"Age: " + 22  // "Age: 22"
+```
+
+### Python
+
+Python does not automatically concatenate a string
+and a number using +. The programmer must explicitly
+convert the number into a string.
+
+For example:
+
+```python
+"Age: " + str(22)
+```
+
+### C#
+
+C# supports concatenating strings with other types
+by converting the other operand into a string.
+
+For example:
+
+```csharp
+"Age: " + 22
+```
+
+### C++
+
+C++ supports string concatenation with +, but
+not every type is automatically converted into
+a string. Other conversions may need to be
+performed explicitly.
+
+For example:
+
+```cpp
+std::string("Age: ") + std::to_string(22)
+```
+
+This is a proposed language design choice, not a
+feature currently implemented in clox.
